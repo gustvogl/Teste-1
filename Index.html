@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEGIS — Dashboard de Auditoria · PoC Grand Prix SENAI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&display=swap');
+
+  :root {
+    --bg:       #040810;
+    --panel:    #070e1c;
+    --border:   #0d2040;
+    --cyan:     #00d4ff;
+    --green:    #00ff88;
+    --red:      #ff2d55;
+    --amber:    #ffb300;
+    --dim:      #1a3a5c;
+    --text:     #c8e0f4;
+    --mono:     'Share Tech Mono', monospace;
+    --sans:     'Exo 2', sans-serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,212,255,.015) 2px,
+      rgba(0,212,255,.015) 4px
+    );
+    pointer-events:none;
+    z-index:999;
+  }
+
+  /* Grid bg */
+  body::after {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,212,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* ── TOP BAR ── */
+  header {
+    position: relative; z-index:10;
+    display: flex; align-items:center; justify-content:space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, #050d1a 0%, #070e20 50%, #050d1a 100%);
+  }
+
+  .logo {
+    display:flex; align-items:center; gap:12px;
+  }
+  .logo-hex {
+    width:38px; height:38px;
+    background: conic-gradient(from 0deg, var(--cyan), var(--green), var(--cyan));
+    clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    animation: spinHex 8s linear infinite;
+    flex-shrink:0;
+  }
+  @keyframes spinHex { to { filter: hue-rotate(360deg); } }
+
+  .logo-text { line-height:1.1; }
+  .logo-text .brand { font-size:22px; font-weight:900; letter-spacing:4px; color:var(--cyan); text-shadow:0 0 12px var(--cyan); }
+  .logo-text .sub   { font-size:9px;  font-family:var(--mono); color:#4a7a9b; letter-spacing:2px; }
+
+  .header-center {
+    font-family:var(--mono); font-size:11px; color:#4a7a9b; text-align:center; letter-spacing:1px;
+  }
+  .header-center .session-id { color:var(--amber); }
+
+  .header-right {
+    display:flex; gap:16px; align-items:center;
+  }
+  .pill {
+    font-family:var(--mono); font-size:10px; padding:4px 10px;
+    border-radius:2px; letter-spacing:1px;
+  }
+  .pill-green { background:rgba(0,255,136,.1); border:1px solid var(--green); color:var(--green); }
+  .pill-cyan  { background:rgba(0,212,255,.1); border:1px solid var(--cyan);  color:var(--cyan);  }
+  .clock { font-family:var(--mono); font-size:13px; color:var(--cyan); min-width:80px; text-align:right; }
+
+  /* ── MAIN GRID ── */
+  main {
+    position:relative; z-index:10;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap:12px;
+    padding:12px;
+    height: calc(100vh - 58px - 90px);
+  }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius:4px;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+    position:relative;
+  }
+
+  .panel-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 14px;
+    border-bottom:1px solid var(--border);
+    background: linear-gradient(90deg, rgba(0,212,255,.04) 0%, transparent 100%);
+    flex-shrink:0;
+  }
+  .panel-title {
+    font-size:10px; letter-spacing:3px; font-family:var(--mono);
+    display:flex; align-items:center; gap:8px;
+  }
+  .dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+  .dot-red   { background:var(--red);   box-shadow:0 0 6px var(--red);   }
+  .dot-green { background:var(--green); box-shadow:0 0 6px var(--green); }
+  .dot-cyan  { background:var(--cyan);  box-shadow:0 0 6px var(--cyan);  }
+  .dot-amber { background:var(--amber); box-shadow:0 0 6px var(--amber); }
+
+  .panel-badge {
+    font-family:var(--mono); font-size:9px; padding:2px 8px;
+    border-radius:2px; letter-spacing:1px;
+  }
+  .badge-danger  { background:rgba(255,45,85,.15); border:1px solid var(--red);   color:var(--red);   }
+  .badge-safe    { background:rgba(0,255,136,.1);  border:1px solid var(--green); color:var(--green); }
+  .badge-enc     { background:rgba(0,212,255,.1);  border:1px solid var(--cyan);  color:var(--cyan);  }
+
+  /* ── VIDEO FEEDS ── */
+  .video-wrap {
+    flex:1; position:relative; overflow:hidden; background:#000;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  #rawCanvas, #safeCanvas {
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+
+  /* Corner brackets */
+  .video-wrap::before, .video-wrap::after,
+  .corner-br, .corner-bl {
+    content:''; position:absolute; width:20px; height:20px;
+    border-color:var(--cyan); border-style:solid; opacity:.5;
+    pointer-events:none; z-index:5;
+  }
+  .video-wrap::before { top:8px; left:8px;   border-width:2px 0 0 2px; }
+  .video-wrap::after  { top:8px; right:8px;  border-width:2px 2px 0 0; }
+  .corner-br { bottom:8px; right:8px; border-width:0 2px 2px 0; }
+  .corner-bl { bottom:8px; left:8px;  border-width:0 0 2px 2px; }
+
+  /* REC blink */
+  .rec-badge {
+    position:absolute; top:12px; right:14px; z-index:6;
+    font-family:var(--mono); font-size:9px; color:var(--red);
+    display:flex; align-items:center; gap:5px;
+    animation: recBlink 1.2s step-end infinite;
+  }
+  @keyframes recBlink { 50% { opacity:0; } }
+
+  .no-cam-msg {
+    font-family:var(--mono); font-size:11px; color:#2a5070; letter-spacing:2px; text-align:center;
+    padding:10px;
+  }
+
+  /* BLUR OVERLAY label */
+  .privacy-label {
+    position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+    font-family:var(--mono); font-size:9px; letter-spacing:2px;
+    background:rgba(0,255,136,.12); border:1px solid var(--green);
+    color:var(--green); padding:3px 10px; border-radius:2px; z-index:6;
+    white-space:nowrap;
+  }
+
+  /* ── METRICS ── */
+  .metrics-strip {
+    display:flex; gap:10px; padding:8px 14px;
+    border-top:1px solid var(--border); flex-shrink:0;
+  }
+  .metric {
+    flex:1; background:rgba(0,0,0,.3); border:1px solid var(--dim);
+    border-radius:3px; padding:5px 8px;
+  }
+  .metric-label { font-family:var(--mono); font-size:8px; color:#4a7a9b; letter-spacing:1px; }
+  .metric-value { font-family:var(--mono); font-size:13px; color:var(--cyan); margin-top:1px; }
+  .metric-value.green  { color:var(--green); }
+  .metric-value.amber  { color:var(--amber); }
+  .metric-value.red    { color:var(--red);   }
+
+  /* ── FOOTER BAR ── */
+  footer {
+    position:relative; z-index:10;
+    display:grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap:10px; padding:10px 12px;
+    border-top:1px solid var(--border);
+    background: linear-gradient(180deg, #050d1a 0%, #040810 100%);
+    height:90px;
+  }
+
+  .stat-card {
+    background:var(--panel); border:1px solid var(--border); border-radius:3px;
+    padding:8px 12px; display:flex; flex-direction:column; justify-content:space-between;
+    position:relative; overflow:hidden;
+  }
+  .stat-card::before {
+    content:''; position:absolute; bottom:0; left:0; height:2px; width:100%;
+  }
+  .stat-card.c { background:rgba(0,212,255,.04); border-color:rgba(0,212,255,.3); }
+  .stat-card.c::before { background:var(--cyan); box-shadow:0 0 8px var(--cyan); }
+  .stat-card.g { background:rgba(0,255,136,.04); border-color:rgba(0,255,136,.3); }
+  .stat-card.g::before { background:var(--green); box-shadow:0 0 8px var(--green); }
+  .stat-card.r { background:rgba(255,45,85,.04);  border-color:rgba(255,45,85,.3);  }
+  .stat-card.r::before { background:var(--red);   box-shadow:0 0 8px var(--red);   }
+  .stat-card.a { background:rgba(255,179,0,.04);  border-color:rgba(255,179,0,.3);  }
+  .stat-card.a::before { background:var(--amber); box-shadow:0 0 8px var(--amber); }
+
+  .stat-label { font-family:var(--mono); font-size:8px; letter-spacing:2px; color:#4a7a9b; }
+  .stat-value { font-family:var(--mono); font-size:20px; font-weight:400; }
+  .stat-value.c { color:var(--cyan);  text-shadow:0 0 10px var(--cyan);  }
+  .stat-value.g { color:var(--green); text-shadow:0 0 10px var(--green); }
+  .stat-value.r { color:var(--red);   text-shadow:0 0 10px var(--red);   }
+  .stat-value.a { color:var(--amber); text-shadow:0 0 10px var(--amber); }
+  .stat-sub  { font-family:var(--mono); font-size:8px; color:#3a6080; }
+
+  /* ── TRAFFIC CHART ── */
+  .chart-panel {
+    /* spans second row, right column */
+  }
+  .chart-area {
+    flex:1; padding:10px 14px; display:flex; flex-direction:column; gap:6px; justify-content:center;
+  }
+  .bar-row { display:flex; flex-direction:column; gap:3px; }
+  .bar-label { font-family:var(--mono); font-size:9px; color:#4a7a9b; letter-spacing:1px; display:flex; justify-content:space-between; }
+  .bar-track { height:14px; background:rgba(0,0,0,.4); border:1px solid var(--dim); border-radius:2px; overflow:hidden; position:relative; }
+  .bar-fill  { height:100%; border-radius:2px; transition: width .6s ease; }
+  .bar-enc   { background:linear-gradient(90deg, #00ff88 0%, #00d4ff 100%); box-shadow:0 0 6px rgba(0,212,255,.4); }
+  .bar-open  { background:linear-gradient(90deg, #ff2d55 0%, #ff6b35 100%); box-shadow:0 0 6px rgba(255,45,85,.4); }
+
+  .log-panel { font-family:var(--mono); font-size:9px; color:#3a6080; overflow:hidden; }
+  .log-area { flex:1; overflow-y:auto; padding:6px 14px; display:flex; flex-direction:column; gap:3px; }
+  .log-area::-webkit-scrollbar { width:3px; }
+  .log-area::-webkit-scrollbar-thumb { background:var(--dim); }
+  .log-entry { display:flex; gap:8px; }
+  .log-ts    { color:#1a4060; flex-shrink:0; }
+  .log-msg.ok   { color:var(--green); }
+  .log-msg.warn { color:var(--amber); }
+  .log-msg.info { color:var(--cyan);  }
+  .log-msg.err  { color:var(--red);   }
+
+  /* ── BLACKOUT OVERLAY ── */
+  #blackout {
+    position:fixed; inset:0; z-index:1000;
+    background:#000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px;
+    opacity:0; pointer-events:none;
+    transition: opacity .3s ease;
+  }
+  #blackout.active { opacity:1; pointer-events:all; }
+  .blackout-title {
+    font-family:var(--mono); font-size:28px; letter-spacing:6px; color:var(--red);
+    text-shadow:0 0 30px var(--red); animation: pulse 1s ease-in-out infinite;
+  }
+  .blackout-sub {
+    font-family:var(--mono); font-size:13px; letter-spacing:3px; color:#ff6b35;
+  }
+  .blackout-detail {
+    font-family:var(--mono); font-size:10px; color:#3a1520; max-width:400px; text-align:center; line-height:1.8;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .blackout-btn {
+    margin-top:10px; font-family:var(--mono); font-size:10px; letter-spacing:2px;
+    padding:8px 20px; background:transparent; border:1px solid var(--red);
+    color:var(--red); cursor:pointer; border-radius:2px;
+  }
+  .blackout-btn:hover { background:rgba(255,45,85,.1); }
+
+  /* ── DEMO CTRL ── */
+  #demoCtrl {
+    position:fixed; bottom:16px; right:16px; z-index:998;
+    display:flex; flex-direction:column; gap:6px; align-items:flex-end;
+  }
+  .ctrl-btn {
+    font-family:var(--mono); font-size:9px; letter-spacing:2px;
+    padding:6px 14px; border-radius:2px; cursor:pointer;
+    background:rgba(0,0,0,.8); backdrop-filter:blur(4px);
+    transition:.2s;
+  }
+  .ctrl-btn.danger { border:1px solid var(--red); color:var(--red); }
+  .ctrl-btn.danger:hover { background:rgba(255,45,85,.15); }
+  .ctrl-btn.safe  { border:1px solid var(--green); color:var(--green); }
+  .ctrl-btn.safe:hover  { background:rgba(0,255,136,.1); }
+  .ctrl-btn.info  { border:1px solid var(--cyan); color:var(--cyan); }
+  .ctrl-btn.info:hover  { background:rgba(0,212,255,.1); }
+  .ctrl-label {
+    font-family:var(--mono); font-size:8px; color:#2a5070; letter-spacing:1px; text-align:right;
+  }
+
+  /* ── FACE BLUR INDICATOR ── */
+  .face-count {
+    position:absolute; top:12px; left:12px; z-index:6;
+    font-family:var(--mono); font-size:9px; color:var(--green);
+    background:rgba(0,255,136,.1); border:1px solid rgba(0,255,136,.3);
+    padding:3px 8px; border-radius:2px; letter-spacing:1px;
+  }
+</style>
+</head>
+<body>
+
+<!-- BLACKOUT OVERLAY -->
+<div id="blackout">
+  <div style="font-family:var(--mono);font-size:11px;color:#3a1520;letter-spacing:4px;">AEGIS CONTINUOUS TRUST SYSTEM</div>
+  <div class="blackout-title">⚠ ACESSO REVOGADO</div>
+  <div class="blackout-sub">PERDA DE CONTATO FÍSICO DETECTADA</div>
+  <div class="blackout-detail">
+    Dispositivo óptico desacoplado do operador.<br>
+    Sessão encerrada conforme protocolo Zero-Trust.<br>
+    Evento registrado em blockchain de auditoria.<br>
+    ID: <span id="revokeId">—</span>
+  </div>
+  <button class="blackout-btn" onclick="restoreAccess()">▶ REAUTENTICAR OPERADOR</button>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-hex"></div>
+    <div class="logo-text">
+      <div class="brand">AEGIS</div>
+      <div class="sub">SECURE INDUSTRIAL VISION · EDGE LAYER v2.1</div>
+    </div>
+  </div>
+  <div class="header-center">
+    REFINARIA SUDESTE · ZONA CRÍTICA K-7<br>
+    SESSION <span class="session-id" id="sessId">—</span>
+  </div>
+  <div class="header-right">
+    <span class="pill pill-green">● SDP ATIVO</span>
+    <span class="pill pill-cyan">AES-256 · TLS 1.3</span>
+    <div class="clock" id="clk">00:00:00</div>
+  </div>
+</header>
+
+<!-- MAIN PANELS -->
+<main>
+
+  <!-- LEFT: RAW FEED (RISCO) -->
+  <div class="panel" id="panelLeft">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="dot dot-red"></span>
+        VISÃO DO OPERADOR — SEM FILTRO
+      </div>
+      <span class="panel-badge badge-danger">⚠ DADOS EXPOSTOS</span>
+    </div>
+    <div class="video-wrap" id="rawWrap">
+      <canvas id="rawCanvas"></canvas>
+      <div class="corner-br"></div><div class="corner-bl"></div>
+      <div class="rec-badge"><span class="dot dot-red"></span>REC LIVE</div>
+      <div class="no-cam-msg" id="noCamMsg" style="display:none">
+        CÂMERA NÃO DETECTADA<br><br>
+        Ative a câmera no<br>botão abaixo ↓<br><br>
+        <span style="color:#1a4a6a">ou veja a demo simulada</span>
+      </div>
+    </div>
+    <div class="metrics-strip">
+      <div class="metric">
+        <div class="metric-label">ROSTOS DETECTADOS</div>
+        <div class="metric-value red" id="rawFaces">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">TEXTOS SENSÍVEIS</div>
+        <div class="metric-value red" id="rawTexts">3</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">RISCO DE VAZAMENTO</div>
+        <div class="metric-value red">ALTO</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: SAFE FEED (PROCESSADO) -->
+  <div class="panel" id="panelRight">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="dot dot-green"></span>
+        VISÃO IA NA NUVEM — PROCESSADO
+      </div>
+      <span class="panel-badge badge-safe">✓ PRIVACIDADE GARANTIDA</span>
+    </div>
+    <div class="video-wrap" id="safeWrap">
+      <canvas id="safeCanvas"></canvas>
+      <div class="corner-br"></div><div class="corner-bl"></div>
+      <div class="rec-badge" style="color:var(--green);"><span class="dot dot-green"></span>STREAM CIFRADO</div>
+      <div class="face-count" id="faceCount">● 0 ROSTOS ANONIMIZADOS</div>
+      <div class="privacy-label" id="privLabel" style="display:none">
+        ◉ PROTEÇÃO ATIVA · FACES BORRADAS · TEXTOS MASCARADOS
+      </div>
+    </div>
+    <div class="metrics-strip">
+      <div class="metric">
+        <div class="metric-label">LATÊNCIA BORDA</div>
+        <div class="metric-value green" id="latency">14ms</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">FACES ANONIMIZADAS</div>
+        <div class="metric-value green" id="safeFaces">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">STATUS PRIVACIDADE</div>
+        <div class="metric-value green">SEGURO</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM LEFT: TRAFFIC CHART + LOG -->
+  <div class="panel" style="flex-direction:row;">
+    <div style="flex:1; display:flex; flex-direction:column; border-right:1px solid var(--border);">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot dot-cyan"></span>TRÁFEGO DE REDE</div>
+        <span class="panel-badge badge-enc">AES-256</span>
+      </div>
+      <div class="chart-area">
+        <div class="bar-row">
+          <div class="bar-label"><span>TRÁFEGO CIFRADO (SDP)</span><span id="encPct">94%</span></div>
+          <div class="bar-track"><div class="bar-fill bar-enc" id="encBar" style="width:94%"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>TRÁFEGO ABERTO</span><span id="openPct">6%</span></div>
+          <div class="bar-track"><div class="bar-fill bar-open" id="openBar" style="width:6%"></div></div>
+        </div>
+        <div class="bar-row" style="margin-top:4px;">
+          <div class="bar-label"><span>BANDA UTILIZADA</span><span id="bandPct">37%</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bandBar" style="width:37%; background:var(--amber);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>EVENTOS BLOQUEADOS</span><span id="blockPct">100%</span></div>
+          <div class="bar-track"><div class="bar-fill bar-enc" id="blockBar" style="width:100%"></div></div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column;">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot dot-amber"></span>LOG DE AUDITORIA</div>
+        <span class="panel-badge" style="color:#4a7a9b; border:1px solid var(--dim); font-family:var(--mono); font-size:9px; padding:2px 8px;">BLOCKCHAIN</span>
+      </div>
+      <div class="log-area" id="logArea"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM RIGHT: AUDIO NLP -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="dot dot-cyan"></span>SANITIZAÇÃO DE ÁUDIO (NLP)</div>
+      <span class="panel-badge badge-enc">PROCESSADO</span>
+    </div>
+    <div style="flex:1; padding:10px 14px; display:flex; flex-direction:column; gap:8px; justify-content:center; overflow:hidden;">
+      <div style="font-family:var(--mono); font-size:8px; color:#4a7a9b; letter-spacing:2px; margin-bottom:4px;">TRANSCRIÇÃO ORIGINAL (RISCO)</div>
+      <div id="audioRaw" style="font-family:var(--mono); font-size:11px; color:var(--red); background:rgba(255,45,85,.05); border:1px solid rgba(255,45,85,.2); padding:8px 10px; border-radius:3px; line-height:1.7; min-height:50px;"></div>
+      <div style="font-family:var(--mono); font-size:8px; color:#4a7a9b; letter-spacing:2px; margin-top:4px;">SAÍDA SANITIZADA (SEGURO)</div>
+      <div id="audioSafe" style="font-family:var(--mono); font-size:11px; color:var(--green); background:rgba(0,255,136,.04); border:1px solid rgba(0,255,136,.2); padding:8px 10px; border-radius:3px; line-height:1.7; min-height:50px;"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- FOOTER STATS -->
+<footer>
+  <div class="stat-card c">
+    <div class="stat-label">FRAMES PROCESSADOS</div>
+    <div class="stat-value c" id="frames">0</div>
+    <div class="stat-sub">EDGE · 30fps target</div>
+  </div>
+  <div class="stat-card g">
+    <div class="stat-label">IDENTIDADES PROTEGIDAS</div>
+    <div class="stat-value g" id="identities">0</div>
+    <div class="stat-sub">SHA-256 anonimizado</div>
+  </div>
+  <div class="stat-card r">
+    <div class="stat-label">TENTATIVAS BLOQUEADAS</div>
+    <div class="stat-value r" id="blocked">0</div>
+    <div class="stat-sub">acesso não autorizado</div>
+  </div>
+  <div class="stat-card a">
+    <div class="stat-label">EVENTOS DE AUDITORIA</div>
+    <div class="stat-value a" id="auditEvts">0</div>
+    <div class="stat-sub">imutáveis em blockchain</div>
+  </div>
+</footer>
+
+<!-- DEMO CONTROLS -->
+<div id="demoCtrl">
+  <div class="ctrl-label">PAINEL DE DEMONSTRAÇÃO</div>
+  <button class="ctrl-btn danger" onclick="triggerBlackout()">⊘ SIMULAR PERDA DE CONTATO</button>
+  <button class="ctrl-btn info"   onclick="toggleCamera()">◎ ATIVAR/DESATIVAR CÂMERA</button>
+  <button class="ctrl-btn safe"   id="blurToggle" onclick="toggleBlur()">◉ BLUR LIGADO</button>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────
+let camActive = false;
+let blurOn = true;
+let stream = null;
+let facesDetected = 0;
+let animFrame = null;
+let frameCount = 0, identityCount = 0, blockedCount = 0, auditCount = 0;
+let demoMode = true; // fallback when no camera
+
+const rawCanvas  = document.getElementById('rawCanvas');
+const safeCanvas = document.getElementById('safeCanvas');
+const rawCtx     = rawCanvas.getContext('2d');
+const safeCtx    = safeCanvas.getContext('2d');
+
+const audioSnippets = [
+  {
+    raw:  'Ajustando a válvula do Projeto NEPTUNO, setor K-7. Pressão: 4.2 bar.',
+    safe: 'Ajustando a válvula do Projeto [REDACTED], setor [ZONA]. Pressão: [DADO OPERACIONAL].'
+  },
+  {
+    raw:  'Login: operador.carlos@refinaria.com — senha temporária: Rio2024!',
+    safe: 'Login: [CREDENCIAL MASCARADA] — senha: [REDACTED].'
+  },
+  {
+    raw:  'Ativando bypass de emergência na linha Alfa-3, código 7-7-Alpha.',
+    safe: 'Ativando [PROCEDIMENTO] na linha [EQUIPAMENTO], código [REDACTED].'
+  },
+  {
+    raw:  'Planta Confidencial B está no armário 12 da sala de controle principal.',
+    safe: 'Planta [CONFIDENCIAL] está em [LOCAL RESTRITO].'
+  }
+];
+let audioIdx = 0;
+
+// ─── CLOCK + SESSION ─────────────────────────────────────
+function genId(n) {
+  return Array.from({length:n}, () => '0123456789ABCDEF'[Math.floor(Math.random()*16)]).join('');
+}
+document.getElementById('sessId').textContent = genId(8)+'-'+genId(4);
+document.getElementById('revokeId').textContent = genId(8);
+
+function tick() {
+  const now = new Date();
+  document.getElementById('clk').textContent =
+    now.toTimeString().slice(0,8);
+}
+setInterval(tick, 1000); tick();
+
+// ─── LOG ─────────────────────────────────────────────────
+const logArea = document.getElementById('logArea');
+const logTypes = ['ok','warn','info','err'];
+const logMsgs = [
+  ['ok',  'Autenticação biométrica confirmada — OP-2271'],
+  ['info','Túnel SDP estabelecido · endpoint: edge-k7.aegis.local'],
+  ['ok',  'Sessão inicializada · hash: '+genId(8)],
+  ['info','MediaPipe FaceDetection carregado · latência: 12ms'],
+  ['ok',  'AES-256 handshake concluído com nuvem'],
+  ['warn','Texto sensível detectado no campo visual'],
+  ['ok',  'Rosto anonimizado · SHA: '+genId(6)],
+  ['info','Áudio sanitizado · NLP v3.1'],
+  ['ok',  'Frame #'+Math.floor(Math.random()*9999)+' processado'],
+  ['warn','Tentativa de acesso não autorizado bloqueada'],
+  ['ok',  'Evento gravado em blockchain · bloco #'+genId(4)],
+  ['info','Latência borda: '+Math.floor(Math.random()*8+10)+'ms'],
+];
+let logIdx = 0;
+function addLog() {
+  const [type, msg] = logMsgs[logIdx % logMsgs.length];
+  logIdx++;
+  const ts = new Date().toTimeString().slice(0,8);
+  const el = document.createElement('div');
+  el.className = 'log-entry';
+  el.innerHTML = `<span class="log-ts">${ts}</span><span class="log-msg ${type}">${msg}</span>`;
+  logArea.prepend(el);
+  if (logArea.children.length > 40) logArea.lastChild.remove();
+  auditCount++;
+  document.getElementById('auditEvts').textContent = auditCount;
+}
+setInterval(addLog, 1800);
+for(let i=0;i<6;i++) { addLog(); }
+
+// ─── COUNTERS ────────────────────────────────────────────
+setInterval(() => {
+  frameCount += Math.floor(Math.random()*3)+28;
+  document.getElementById('frames').textContent = frameCount.toLocaleString('pt-BR');
+
+  if(facesDetected > 0) {
+    identityCount += facesDetected;
+    document.getElementById('identities').textContent = identityCount;
+  }
+
+  if(Math.random() < .05) {
+    blockedCount++;
+    document.getElementById('blocked').textContent = blockedCount;
+    addLog();
+  }
+
+  // latency jitter
+  document.getElementById('latency').textContent = (Math.floor(Math.random()*8)+10)+'ms';
+
+  // bars
+  const enc  = 90 + Math.floor(Math.random()*8);
+  const open = 100 - enc;
+  const band = 30 + Math.floor(Math.random()*20);
+  document.getElementById('encBar').style.width  = enc+'%';
+  document.getElementById('openBar').style.width = open+'%';
+  document.getElementById('bandBar').style.width = band+'%';
+  document.getElementById('encPct').textContent  = enc+'%';
+  document.getElementById('openPct').textContent = open+'%';
+  document.getElementById('bandPct').textContent = band+'%';
+}, 1500);
+
+// ─── AUDIO NLP ROTATION ──────────────────────────────────
+function updateAudio() {
+  const s = audioSnippets[audioIdx % audioSnippets.length];
+  audioIdx++;
+  document.getElementById('audioRaw').textContent  = '🎙 "'+s.raw+'"';
+  document.getElementById('audioSafe').textContent = '🔒 "'+s.safe+'"';
+}
+updateAudio();
+setInterval(updateAudio, 5000);
+
+// ─── CANVAS RESIZE ───────────────────────────────────────
+function resizeCanvases() {
+  const rw = document.getElementById('rawWrap');
+  rawCanvas.width  = rw.clientWidth;
+  rawCanvas.height = rw.clientHeight;
+  safeCanvas.width  = document.getElementById('safeWrap').clientWidth;
+  safeCanvas.height = document.getElementById('safeWrap').clientHeight;
+}
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+
+// ─── DEMO VIDEO (simulated noise + "faces") ──────────────
+const demoFaces = [
+  { x:.25, y:.3, size:.12, hue:20 },
+  { x:.7,  y:.5, size:.1,  hue:35 },
+];
+let demoT = 0;
+
+function drawDemoFrame() {
+  const w = rawCanvas.width, h = rawCanvas.height;
+  // dark industrial bg
+  rawCtx.fillStyle = '#060d18';
+  rawCtx.fillRect(0,0,w,h);
+
+  // noise / scanlines sim
+  for(let i=0; i<6; i++) {
+    rawCtx.fillStyle = `rgba(0,40,80,${Math.random()*.08})`;
+    rawCtx.fillRect(0, Math.random()*h, w, 1+Math.random()*3);
+  }
+
+  // "room" elements
+  rawCtx.strokeStyle='rgba(0,100,160,.3)'; rawCtx.lineWidth=1;
+  rawCtx.strokeRect(w*.05, h*.1, w*.4, h*.7);
+  rawCtx.strokeRect(w*.55, h*.05, w*.4, h*.8);
+
+  // POST-IT labels (sensitive data)
+  const labels = ['SENHA: abc123!', 'PLANTA CONFIDENCIAL', 'API_KEY: sk-7f9...'];
+  labels.forEach((lbl,i) => {
+    const lx = (i===0?w*.07: i===1?w*.58:w*.62);
+    const ly = (i===0?h*.15: i===1?h*.12:h*.35);
+    rawCtx.fillStyle='rgba(255,220,0,.85)';
+    rawCtx.fillRect(lx, ly, 120, 22);
+    rawCtx.fillStyle='#000';
+    rawCtx.font='bold 10px monospace';
+    rawCtx.fillText(lbl, lx+4, ly+15);
+  });
+
+  // Faces (circles sim)
+  demoFaces.forEach(f => {
+    const fx = w*f.x + Math.sin(demoT*0.7+f.hue)*8;
+    const fy = h*f.y + Math.cos(demoT*0.5+f.hue)*5;
+    const fr = w*f.size;
+    rawCtx.beginPath();
+    rawCtx.arc(fx, fy, fr, 0, Math.PI*2);
+    rawCtx.fillStyle=`hsl(${f.hue},40%,55%)`;
+    rawCtx.fill();
+    // eyes
+    rawCtx.fillStyle='#000';
+    rawCtx.beginPath(); rawCtx.arc(fx-fr*.3, fy-fr*.1, fr*.08, 0, Math.PI*2); rawCtx.fill();
+    rawCtx.beginPath(); rawCtx.arc(fx+fr*.3, fy-fr*.1, fr*.08, 0, Math.PI*2); rawCtx.fill();
+  });
+
+  rawCtx.fillStyle='rgba(0,212,255,.06)';
+  rawCtx.fillRect(0, (demoT*2)%h, w, 2);
+  demoT+=.04;
+}
+
+function drawSafeFrame(videoEl) {
+  const sw = safeCanvas.width, sh = safeCanvas.height;
+
+  // copy raw or video
+  if(videoEl) {
+    safeCtx.drawImage(videoEl, 0, 0, sw, sh);
+  } else {
+    // copy raw canvas first
+    safeCtx.drawImage(rawCanvas, 0, 0, sw, sh);
+  }
+
+  facesDetected = 0;
+
+  if(blurOn) {
+    if(videoEl) {
+      // Real blur over face zones (simulated — center region)
+      applyBlurZone(safeCtx, sw*.2, sh*.1, sw*.6, sh*.8);
+    } else {
+      // blur over demo faces
+      demoFaces.forEach(f => {
+        const fx = sw*f.x + Math.sin(demoT*0.7+f.hue)*8;
+        const fy = sh*f.y + Math.cos(demoT*0.5+f.hue)*5;
+        const fr = sw*f.size * 1.5;
+        applyBlurZone(safeCtx, fx-fr, fy-fr, fr*2, fr*2);
+        // green box
+        safeCtx.strokeStyle=`rgba(0,255,136,.8)`;
+        safeCtx.lineWidth=2;
+        safeCtx.strokeRect(fx-fr, fy-fr, fr*2, fr*2);
+        safeCtx.fillStyle='rgba(0,255,136,.15)';
+        safeCtx.fillRect(fx-fr, fy-fr, fr*2, fr*2);
+        safeCtx.fillStyle=var_cyan;
+        safeCtx.font='8px monospace';
+        safeCtx.fillText('● FACE ANONIMIZADA',fx-fr+4, fy-fr-4);
+        facesDetected++;
+      });
+
+      // blur post-its
+      [[sw*.07,sh*.15,120,22],[sw*.58,sh*.12,120,22],[sw*.62,sh*.35,120,22]].forEach(([bx,by,bw,bh])=>{
+        applyBlurZone(safeCtx, bx, by, bw, bh);
+        safeCtx.strokeStyle='rgba(255,179,0,.6)'; safeCtx.lineWidth=1.5;
+        safeCtx.strokeRect(bx,by,bw,bh);
+        safeCtx.fillStyle='rgba(255,179,0,.08)';
+        safeCtx.fillRect(bx,by,bw,bh);
+        safeCtx.fillStyle='rgba(255,179,0,.7)'; safeCtx.font='8px monospace';
+        safeCtx.fillText('[TEXTO MASCARADO]',bx+2,by+14);
+      });
+    }
+  }
+
+  // HUD overlay
+  safeCtx.fillStyle='rgba(0,255,136,.04)';
+  safeCtx.fillRect(0,0,sw,sh);
+
+  // update counters
+  document.getElementById('rawFaces').textContent  = demoMode? demoFaces.length : facesDetected;
+  document.getElementById('safeFaces').textContent = blurOn? (demoMode? demoFaces.length : facesDetected) : 0;
+  document.getElementById('faceCount').textContent = `● ${blurOn? (demoMode? demoFaces.length: facesDetected):0} ROSTOS ANONIMIZADOS`;
+
+  if(blurOn && facesDetected >= 0) {
+    document.getElementById('privLabel').style.display='block';
+  }
+}
+
+const var_cyan = '#00d4ff';
+
+function applyBlurZone(ctx, x, y, w, h) {
+  // pixel-based blur simulation
+  try {
+    const imgData = ctx.getImageData(x,y,w,h);
+    const d = imgData.data;
+    const bw = Math.ceil(w), bh = Math.ceil(h);
+    // simple box blur passes
+    for(let pass=0; pass<8; pass++) {
+      for(let py=1; py<bh-1; py++) {
+        for(let px=1; px<bw-1; px++) {
+          const i = (py*bw+px)*4;
+          for(let c=0;c<3;c++) {
+            d[i+c] = (
+              d[i+c] + d[i-4+c] + d[i+4+c] +
+              d[i-bw*4+c] + d[i+bw*4+c]
+            ) / 5;
+          }
+        }
+      }
+    }
+    ctx.putImageData(imgData, x, y);
+  } catch(e) {}
+}
+
+// ─── RENDER LOOP ─────────────────────────────────────────
+let videoEl = null;
+
+function renderLoop() {
+  if(camActive && videoEl && videoEl.readyState >= 2) {
+    rawCtx.drawImage(videoEl, 0, 0, rawCanvas.width, rawCanvas.height);
+    drawSafeFrame(videoEl);
+    demoMode = false;
+  } else {
+    drawDemoFrame();
+    drawSafeFrame(null);
+    demoMode = true;
+  }
+  animFrame = requestAnimationFrame(renderLoop);
+}
+renderLoop();
+
+// ─── CAMERA TOGGLE ───────────────────────────────────────
+async function toggleCamera() {
+  if(camActive) {
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream = null; videoEl = null; camActive = false;
+    document.getElementById('noCamMsg').style.display='block';
+    addLog(); return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    videoEl = document.createElement('video');
+    videoEl.srcObject = stream;
+    videoEl.autoplay = true; videoEl.playsInline = true;
+    await videoEl.play();
+    camActive = true;
+    document.getElementById('noCamMsg').style.display='none';
+    addLog();
+  } catch(e) {
+    document.getElementById('noCamMsg').style.display='block';
+    document.getElementById('noCamMsg').innerHTML='PERMISSÃO DE CÂMERA NEGADA<br><span style="color:#1a4a6a">Demo simulada ativa</span>';
+  }
+}
+
+// ─── BLUR TOGGLE ─────────────────────────────────────────
+function toggleBlur() {
+  blurOn = !blurOn;
+  const btn = document.getElementById('blurToggle');
+  btn.textContent = blurOn ? '◉ BLUR LIGADO' : '○ BLUR DESLIGADO';
+  btn.className   = blurOn ? 'ctrl-btn safe' : 'ctrl-btn danger';
+  addLog();
+}
+
+// ─── BLACKOUT / CONTINUOUS TRUST ─────────────────────────
+function triggerBlackout() {
+  document.getElementById('revokeId').textContent = genId(8);
+  document.getElementById('blackout').classList.add('active');
+  if(animFrame) cancelAnimationFrame(animFrame);
+  // log the revocation
+  const ts = new Date().toTimeString().slice(0,8);
+  const el = document.createElement('div');
+  el.className='log-entry';
+  el.innerHTML=`<span class="log-ts">${ts}</span><span class="log-msg err">⊘ ACESSO REVOGADO — Continuous Trust triggered</span>`;
+  logArea.prepend(el);
+  blockedCount++;
+  document.getElementById('blocked').textContent = blockedCount;
+  auditCount++;
+  document.getElementById('auditEvts').textContent = auditCount;
+}
+function restoreAccess() {
+  document.getElementById('blackout').classList.remove('active');
+  document.getElementById('sessId').textContent = genId(8)+'-'+genId(4);
+  addLog();
+  renderLoop();
+}
+
+// ─── INIT MSG ────────────────────────────────────────────
+setTimeout(() => {
+  document.getElementById('noCamMsg').style.display='none';
+}, 100);
+</script>
+</body>
+</html>
